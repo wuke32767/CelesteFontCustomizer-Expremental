@@ -1,0 +1,13 @@
+USSRNAME_FontCustomizer_FontGenerateStrategy= 字体生成策略
+USSRNAME_FontCustomizer_FontName= 字体名称
+USSRNAME_FontCustomizer_VanillaFont= 原版字体
+USSRNAME_FontCustomizer_ShouldConfirmManually= 按确定键以修改并保存。
+USSRNAME_FontCustomizer_BackgroundLoad_Description= 在后台生成字体。对LazyLoad策略不适用。
+USSRNAME_FontCustomizer_FontGenerateStrategy_Description=
+Loaded: 生成所有原版和Everest加载的字。
+Dialog: 生成在当前语言的对话文件中出现的字。
+All: 生成字体中所有的字。
+LazyLoad: 什么都不生成。惰性地生成所有用到的字。
+如果选择的字体中没有对应的字，所有选项都会回落到原版字体。
+所有选项都有惰性加载机制。这意味着某个字符没有生成但被用到时，会尝试生成该字符。
+像英语这样的语言几乎“不适用”惰性机制，“Mod选项”页面几乎用到了所有字母。
