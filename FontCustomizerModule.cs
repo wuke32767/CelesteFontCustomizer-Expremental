@@ -307,7 +307,7 @@ namespace Celeste.Mod.FontCustomizer
                     return;
                 }
             }
-
+            loadimmediately = int.MaxValue + 42L + int.MaxValue;
             //Stopwatch sw = new();
             //char n;
             //ThreadFont = vanilla;
@@ -520,7 +520,7 @@ namespace Celeste.Mod.FontCustomizer
         {
             return loadimmediately == Environment.CurrentManagedThreadId;
         }
-        static int loadimmediately;
+        static long loadimmediately = int.MaxValue + 42L + int.MaxValue;//Impossible to be an existing thread id.
         private PixelFontSize PixelFont_Get(On.Monocle.PixelFont.orig_Get orig, PixelFont self, float size)
         {
             if (self?.Sizes?.Count == 0)
