@@ -456,6 +456,8 @@ namespace Celeste.Mod.FontCustomizer
         static MonoMod.RuntimeDetour.ILHook orig_measure_h;
         public override void Unload()
         {
+            ThreadCancel = true;
+            RenderTask?.Wait();
             // TODO: unapply any hooks applied in Load()
             On.Celeste.Fonts.Load -= Fonts_Load;
             On.Celeste.Settings.ApplyLanguage -= Settings_ApplyLanguage;
@@ -468,6 +470,9 @@ namespace Celeste.Mod.FontCustomizer
             orig_draw_s?.Dispose();
             orig_draw_l?.Dispose();
             orig_measure_h?.Dispose();
+
+            IL.Monocle.VirtualTexture.Load -= VirtualTexture_Load;
+            On.Monocle.Engine.UnloadContent -= Engine_UnloadContent;
         }
         public override void Load()
         {
@@ -485,6 +490,14 @@ namespace Celeste.Mod.FontCustomizer
             orig_measure_h = new(orig_measure, GenericForeachPatcher);
 
             IL.Monocle.VirtualTexture.Load += VirtualTexture_Load;
+            On.Monocle.Engine.UnloadContent += Engine_UnloadContent;
+        }
+
+        private void Engine_UnloadContent(On.Monocle.Engine.orig_UnloadContent orig, Engine self)
+        {
+            ThreadCancel = true;
+            RenderTask?.Wait();
+            orig(self);
         }
 
         private void VirtualTexture_Load(ILContext il)
