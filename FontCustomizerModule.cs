@@ -151,7 +151,7 @@ namespace Celeste.Mod.FontCustomizer
                 current.SetPixelSizes(0, 64);
 
                 scale = lang.FontFaceSize / current.Size.Metrics.Height.ToDouble();
-                if (_param1 is null && lang.FontFace == "Renogare")
+                if (lang.FontFace == "Renogare")
                 {
                     scale *= scale;//why vanilla font smaller than mine?
                 }
