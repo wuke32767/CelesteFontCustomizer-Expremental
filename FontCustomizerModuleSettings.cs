@@ -4,7 +4,7 @@ namespace Celeste.Mod.FontCustomizer
 {
     public enum GenerationStrategy
     {
-        Loaded, Dialog, All, LazyLoad,
+        Dialog, LazyLoad, Loaded, All,
     }
 
     public class FontCustomizerModuleSettings : EverestModuleSettings
