@@ -17,6 +17,32 @@ using System.Xml;
 
 namespace Celeste.Mod.FontCustomizer
 {
+    static class _vtexmanager
+    {
+        static _vtexmanager()
+        {
+            Logger.Log(LogLevel.Warn, nameof(FontCustomizer), "Failed to get constructor of VirtualTexture.");
+        }
+        static ConstructorInfo? ctor = typeof(VirtualTexture).GetConstructor([typeof(string), typeof(int),typeof(int), typeof(Color),]);
+        public static VirtualTexture CreateTexture(string name, int width, int height, Color color)
+        {
+            if(ctor is null)
+            {
+                return VirtualContent.CreateTexture(name, width, height, color);
+            }
+            return (VirtualTexture)ctor.Invoke([name, width, height, color]);
+        }
+    }
+    ////Disposing VirtualTexture is laggy.
+    ////Remove this after Celeste was Publicized.
+    //class Queue<T>
+    //{
+    //    public int Count { get => 0; }
+    //    public T Peek() => default!;
+    //    public void Enqueue(T item) { }
+    //    public void Dequeue() { }
+    //}
+    //...or reflection?
     public class FontCustomizerModule : EverestModule
     {
         public static readonly string basic_path = "Assets/FontFile";
@@ -138,6 +164,10 @@ namespace Celeste.Mod.FontCustomizer
 
             if (Everest.Content.TryGet($"{basic_path}/{font_ext}", out var md) && FreeTypeExtension.Contains(md.Format))
             {
+                ThreadCancel = true;
+                RenderTask?.Wait();
+                ThreadCancel = false;
+
                 if (cachedFonts.TryGetValue(font_ext, out var rr))
                 {
                     current = rr;
@@ -177,9 +207,6 @@ namespace Celeste.Mod.FontCustomizer
 
                 lang.Font.Sizes[0].Characters.Clear();
 
-                ThreadCancel = true;
-                RenderTask?.Wait();
-                ThreadCancel = false;
 
                 var tar = Settings.Strategy switch
                 {
@@ -296,6 +323,13 @@ namespace Celeste.Mod.FontCustomizer
         volatile bool ThreadCancel = false;
         public void RenderThread(string vanilla, /*HashSet<char>*/IEnumerable<char> gen)
         {
+            var i = make_unique;
+            Queue<(ulong, VirtualTexture)> rng;
+            lock (this)
+            {
+                rng = Disposer[vanilla];
+            }
+
             foreach (var c in gen)
             {
                 //oh, just lock it. 
@@ -305,9 +339,19 @@ namespace Celeste.Mod.FontCustomizer
                 if (ThreadCancel)
                 {
                     RenderTarget[vanilla].Clear();
-                    ThreadCancel = false;
-                    return;
+                    break;
                 }
+            }
+            while (!ThreadCancel && rng.Count > 0)
+            {
+                var (l, r) = rng.Peek();
+                if (l >= i)
+                {
+                    break;
+                }
+                r.Unload();
+                r.Texture_Safe = null;
+                rng.Dequeue();
             }
             loadimmediately = int.MaxValue + 42L + int.MaxValue;
             //Stopwatch sw = new();
@@ -416,7 +460,7 @@ namespace Celeste.Mod.FontCustomizer
                     data[i * bmp.Width + j] = new(vv, vv, vv, vv);
                 }
             }
-            var vt = VirtualContent.CreateTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
+            var vt = _vtexmanager.CreateTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
             System.Threading.Thread.GetCurrentProcessorId();
             vt.Texture_Safe.SetData(data);
             var mtex = new MTexture(vt);
