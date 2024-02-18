@@ -257,7 +257,7 @@ namespace Celeste.Mod.FontCustomizer
         {
             foreach (var (fnt, dir) in RenderTarget)
             {
-                foreach(var (ch, tex) in dir)
+                foreach (var (ch, tex) in dir)
                 {
                     var mightunload = Fonts.Get(fnt);
                     if (mightunload is null)
@@ -270,7 +270,7 @@ namespace Celeste.Mod.FontCustomizer
                 dir.Clear();
             }
         }
-        public PixelFontCharacter? LockedGet(char ch, string fontvanilla)
+        public PixelFontCharacter? LockedGetGenResult(char ch, string fontvanilla)
         {
             lock (this)
             {
@@ -554,11 +554,11 @@ namespace Celeste.Mod.FontCustomizer
                 var lang = Dialog.Languages.Values.FirstOrDefault(x => x.Font is not null && x.FontSize == self);
                 if (lang != null)
                 {
-                    px = LockedGet((char)o, lang.FontFace);
+                    px = LockedGetGenResult((char)o, lang.FontFace);
                 }
                 if (px is null)
                 {
-                    if (!fallbacks.TryGetValue(lang?.FontFace ?? "", out var dirfb) || !dirfb.TryGetValue(o, out px))
+                    //if (!fallbacks.TryGetValue(lang?.FontFace ?? "", out var dirfb) || !dirfb.TryGetValue(o, out px))
                     {
                         return false;
                     }
@@ -588,12 +588,17 @@ namespace Celeste.Mod.FontCustomizer
         private PixelFont Fonts_Load(On.Celeste.Fonts.orig_Load orig, string face)
         {
             var ret = orig(face);
-            if (!fallbacks.ContainsKey(face))
+
+            lock (this)
+            {
+                fallbacks[face] = new(ret.Sizes[0].Characters);
+            }
+
+            if (!RenderTarget.ContainsKey(face))
             {
                 lock (this)
                 {
-                    fallbacks.TryAdd(face, new(ret.Sizes[0].Characters));
-                    RenderTarget.TryAdd(face, new());
+                    RenderTarget.TryAdd(face, []);
                     Disposer.TryAdd(face, new());
                 }
             }
