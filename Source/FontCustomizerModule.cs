@@ -253,38 +253,40 @@ namespace Celeste.Mod.FontCustomizer
             fake_elem.SetAttribute("y", "0");
         }
 
-        public void ConcurrentMerge()
+        public void LockededMerge()
         {
             foreach (var (fnt, dir) in RenderTarget)
             {
-                while (!dir.IsEmpty)
+                foreach(var (ch, tex) in dir)
                 {
-                    var (ch, tex) = dir.First();//Sounds like it's safe.
-                                                //http://msdn.microsoft.com/en-us/library/dd287131.aspx
-                                                //https://github.com/dotnet/runtime/blob/main/src/libraries/System.Linq/src/System/Linq/First.cs#L113
-                    dir.TryRemove(ch, out _);
                     var mightunload = Fonts.Get(fnt);
                     if (mightunload is null)
                     {
-                        dir.Clear();
                         break;
                     }
                     mightunload.Sizes[0].Characters[ch] = tex;
                     //DynamicData.For(mightunload).Get<List<VirtualTexture>>("managedTextures").Add(tex.Texture.Texture);
                 }
+                dir.Clear();
             }
         }
-        public PixelFontCharacter? ConcurrentGet(char ch, string fontvanilla)
+        public PixelFontCharacter? LockedGet(char ch, string fontvanilla)
         {
-            PixelFontCharacter? ret;
-            if (!RenderTarget.TryGetValue(fontvanilla, out var dir) || !dir.TryGetValue(ch, out ret))
+            lock (this)
             {
-                ret = LockedGenerateOrFallbackAndSave(ch, fontvanilla);
+                if (!RenderTarget.TryGetValue(fontvanilla, out var dir) || !dir.TryGetValue(ch, out PixelFontCharacter? ret))
+                {
+                    ret = LockedGenerateOrFallbackAndSave(ch, fontvanilla);
+                }
+                LockededMerge();
+                return ret;
             }
-            ConcurrentMerge();
-            return ret;
         }
-        ConcurrentDictionary<string, ConcurrentDictionary<int, PixelFontCharacter>> RenderTarget = [];
+        //no need to concurrent.
+        //just lock it manually.
+        //there're only two threads, after all.
+        Dictionary<string, Dictionary<int, PixelFontCharacter>> RenderTarget = [];
+        Dictionary<string, Queue<(ulong, VirtualTexture)>> Disposer = [];
         ////Don't support more than one thread.
         //string ThreadFont;
         //char? ThreadRequest;
@@ -297,7 +299,7 @@ namespace Celeste.Mod.FontCustomizer
             foreach (var c in gen)
             {
                 //oh, just lock it. 
-                loadimmediately= Environment.CurrentManagedThreadId;
+                loadimmediately = Environment.CurrentManagedThreadId;
                 LockedGenerateOrFallbackAndSave(c, vanilla);
                 System.Threading.Thread.Sleep(1);//laggy
                 if (ThreadCancel)
@@ -367,7 +369,7 @@ namespace Celeste.Mod.FontCustomizer
                     return Fallback();
                 }
 
-                var tex = GenerateChar(c, current, _make_unique: fontvanilla);
+                var tex = LockededGenerateChar(c, current, _make_unique: fontvanilla);
 
                 if (tex is null)
                 {
@@ -385,12 +387,13 @@ namespace Celeste.Mod.FontCustomizer
 
                 var charx = new PixelFontCharacter(c, tex, fake_elem);
                 //return Fonts.Get(fontvanilla).Sizes[0].Characters[c] = charx;
+                Disposer[fontvanilla].Enqueue((make_unique, charx.Texture.Texture));
                 return RenderTarget[fontvanilla][c] = charx;
             }
         }
         public Dictionary<string, Dictionary<int, PixelFontCharacter>> fallbacks = [];
         static ulong make_unique = 0;
-        public MTexture? GenerateChar(char c, SharpFont.Face lang, string _make_unique)
+        public MTexture? LockededGenerateChar(char c, SharpFont.Face lang, string _make_unique)
         {
             var wh = lang.GetCharIndex(c);
             if (wh == 0)
@@ -413,7 +416,7 @@ namespace Celeste.Mod.FontCustomizer
                     data[i * bmp.Width + j] = new(vv, vv, vv, vv);
                 }
             }
-            var vt = VirtualContent.CreateTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{make_unique++}", bmp.Width, bmp.Rows, Color.White);
+            var vt = VirtualContent.CreateTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
             System.Threading.Thread.GetCurrentProcessorId();
             vt.Texture_Safe.SetData(data);
             var mtex = new MTexture(vt);
@@ -551,7 +554,7 @@ namespace Celeste.Mod.FontCustomizer
                 var lang = Dialog.Languages.Values.FirstOrDefault(x => x.Font is not null && x.FontSize == self);
                 if (lang != null)
                 {
-                    px = ConcurrentGet((char)o, lang.FontFace);
+                    px = LockedGet((char)o, lang.FontFace);
                 }
                 if (px is null)
                 {
@@ -587,8 +590,12 @@ namespace Celeste.Mod.FontCustomizer
             var ret = orig(face);
             if (!fallbacks.ContainsKey(face))
             {
-                fallbacks.TryAdd(face, new(ret.Sizes[0].Characters));
-                RenderTarget.TryAdd(face, new());
+                lock (this)
+                {
+                    fallbacks.TryAdd(face, new(ret.Sizes[0].Characters));
+                    RenderTarget.TryAdd(face, new());
+                    Disposer.TryAdd(face, new());
+                }
             }
             return ret;
         }

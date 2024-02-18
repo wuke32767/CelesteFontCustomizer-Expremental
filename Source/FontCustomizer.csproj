@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net7.0</TargetFramework>
@@ -23,10 +23,11 @@
     </ItemGroup>
 
     <ItemGroup>
+      <!--<PackageReference Include="CelesteMod.Publicizer" Version="1.0.0" CelesteAssembly="$(CelestePrefix)\Celeste.dll" />-->
         <Reference Include="$(CelestePrefix)\Celeste.dll">
             <Private>false</Private>
         </Reference>
-        <Reference Include="$(CelestePrefix)\MMHOOK_Celeste.dll">
+      <Reference Include="$(CelestePrefix)\MMHOOK_Celeste.dll">
             <Private>false</Private>
         </Reference>
         <Reference Include="$(CelestePrefix)\FNA.dll">
