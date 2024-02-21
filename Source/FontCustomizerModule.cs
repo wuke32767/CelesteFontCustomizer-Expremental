@@ -435,7 +435,7 @@ namespace Celeste.Mod.FontCustomizer
                 }
             }
             var vt = new VirtualTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
-            System.Threading.Thread.GetCurrentProcessorId();
+            //System.Threading.Thread.GetCurrentProcessorId();
             vt.Texture_Safe.SetData(data);
             var mtex = new MTexture(vt);
             bmp.Dispose();
