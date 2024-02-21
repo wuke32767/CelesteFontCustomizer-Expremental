@@ -21,10 +21,16 @@
         <PackageReference Include="MonoMod.RuntimeDetour" Version="25.0.2" PrivateAssets="all" ExcludeAssets="runtime" />
         <PackageReference Include="MonoMod.Patcher" Version="25.0.0-prerelease.2" />
     </ItemGroup>
+  
+  <ItemGroup Condition="Exists('$(CelestePrefix)\FailedToPublicizeCeleste.txt')">
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.IgnoresAccessChecksToAttribute">
+      <_Parameter1>Celeste</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 
-    <ItemGroup>
-      <!--<PackageReference Include="CelesteMod.Publicizer" Version="1.0.0" CelesteAssembly="$(CelestePrefix)\Celeste.dll" />-->
-        <Reference Include="$(CelestePrefix)\Celeste.dll">
+  <ItemGroup>
+      <PackageReference Condition="!Exists('$(CelestePrefix)\FailedToPublicizeCeleste.txt')" Include="CelesteMod.Publicizer" Version="1.0.0" CelesteAssembly="$(CelestePrefix)\Celeste.dll" />
+        <Reference Include="$(CelestePrefix)\Celeste-publicized.dll" Condition="Exists('$(CelestePrefix)\FailedToPublicizeCeleste.txt')">
             <Private>false</Private>
         </Reference>
       <Reference Include="$(CelestePrefix)\MMHOOK_Celeste.dll">

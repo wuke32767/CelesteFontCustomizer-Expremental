@@ -17,32 +17,6 @@ using System.Xml;
 
 namespace Celeste.Mod.FontCustomizer
 {
-    static class _vtexmanager
-    {
-        static _vtexmanager()
-        {
-            Logger.Log(LogLevel.Warn, nameof(FontCustomizer), "Failed to get constructor of VirtualTexture.");
-        }
-        static ConstructorInfo? ctor = typeof(VirtualTexture).GetConstructor([typeof(string), typeof(int),typeof(int), typeof(Color),]);
-        public static VirtualTexture CreateTexture(string name, int width, int height, Color color)
-        {
-            if(ctor is null)
-            {
-                return VirtualContent.CreateTexture(name, width, height, color);
-            }
-            return (VirtualTexture)ctor.Invoke([name, width, height, color]);
-        }
-    }
-    ////Disposing VirtualTexture is laggy.
-    ////Remove this after Celeste was Publicized.
-    //class Queue<T>
-    //{
-    //    public int Count { get => 0; }
-    //    public T Peek() => default!;
-    //    public void Enqueue(T item) { }
-    //    public void Dequeue() { }
-    //}
-    //...or reflection?
     public class FontCustomizerModule : EverestModule
     {
         public static readonly string basic_path = "Assets/FontFile";
@@ -210,7 +184,7 @@ namespace Celeste.Mod.FontCustomizer
 
                 var tar = Settings.Strategy switch
                 {
-                    GenerationStrategy.Dialog => lang.Cleaned.Values.SelectMany(x => x).Concat(englishGenerated).Distinct(),
+                    GenerationStrategy.Dialog => lang.Cleaned.Values.SelectMany(x => x).Concat(englishGenerated).ToHashSet(),
                     GenerationStrategy.Loaded => fallbacks[lang.FontFace].Keys.Select(x => (char)x),
                     GenerationStrategy.All => generate_all(),
                     GenerationStrategy.LazyLoad => Enumerable.Empty<char>(),
@@ -460,7 +434,7 @@ namespace Celeste.Mod.FontCustomizer
                     data[i * bmp.Width + j] = new(vv, vv, vv, vv);
                 }
             }
-            var vt = _vtexmanager.CreateTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
+            var vt = new VirtualTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
             System.Threading.Thread.GetCurrentProcessorId();
             vt.Texture_Safe.SetData(data);
             var mtex = new MTexture(vt);
@@ -557,7 +531,7 @@ namespace Celeste.Mod.FontCustomizer
             {
                 var label = ic.MarkLabel();
                 ic.Index -= 3;
-                ic.Emit(Mono.Cecil.Cil.OpCodes.Call, typeof(FontCustomizerModule).GetMethod(nameof(GetProcess), BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
+                ic.Emit(Mono.Cecil.Cil.OpCodes.Call, typeof(FontCustomizerModule).GetMethod(nameof(GetProcess), BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!);
                 //ic.Emit(Mono.Cecil.Cil.OpCodes.Ldsfld, typeof(FontCustomizerModule).GetField(nameof(loadimmediately), BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
                 ic.Emit(Mono.Cecil.Cil.OpCodes.Brtrue, label);
             }
