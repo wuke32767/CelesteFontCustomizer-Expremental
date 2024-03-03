@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Monocle;
 using MonoMod.Cil;
 using MonoMod.Utils;
+using SharpFont.TrueType;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -30,15 +31,18 @@ namespace Celeste.Mod.FontCustomizer
         public static readonly HashSet<string> FreeTypeExtension = ["ttf", "otf", "pfb", "pfm", "cid", "cff", "fon", "fnt", "pcf"];
         public override void CreateModMenuSection(TextMenu menu, bool inGame, EventInstance snapshot)
         {
+            optionMenu.Clear();
             base.CreateModMenuSection(menu, inGame, snapshot);
             if (!inGame)
             {
                 ExtendMenu(menu, inGame);
             }
         }
+        List<OptionConfirmed<string?>> optionMenu = [];
         private void ExtendMenu(TextMenu menu, bool inGame)
         {
-            OptionConfirmed<string?> skinSelectMenu = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName"));
+            OptionConfirmed<string?> skinSelectMenu = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName"), "USSRNAME_FontCustomizer_ShouldConfirmManually_FontCustomizer");
+            //OptionConfirmed<string?> skinSelectMenufb = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName_Fallback"));
 
             skinSelectMenu.Add(Dialog.Clean("USSRNAME_FontCustomizer_VanillaFont"), null, true);
 
@@ -48,14 +52,14 @@ namespace Celeste.Mod.FontCustomizer
                 var nameless = name[..name.LastIndexOf('.')];
                 if (!Dialog.Languages.Values.Select(x => x.FontFace).Contains(nameless))
                 {
-                    skinSelectMenu.Add(nameless, name, name == Settings.FontName);
+                    skinSelectMenu.Add(nameless, name, name == Settings.FontNameList[0]);
                 }
             }
 
             skinSelectMenu.Change(x =>
             {
-                Settings.FontName = x;
-                LoadFont(Settings.FontName);
+                Settings.FontNameList[0] = x;
+                LoadFont();
             });
 
             menu.Add(skinSelectMenu);
@@ -69,7 +73,7 @@ namespace Celeste.Mod.FontCustomizer
             Logger.SetLogLevel(nameof(FontCustomizerModule), LogLevel.Verbose);
 #else
             // release builds use info logging to reduce spam in log files
-            Logger.SetLogLevel(nameof(NewFontModule), LogLevel.Info);
+            Logger.SetLogLevel(nameof(FontCustomizerModule), LogLevel.Info);
 #endif
             //var t2d = new Texture2D(Engine.Graphics.GraphicsDevice, 64, 64, false, SurfaceFormat.Alpha8);
             ////t2d.SetData();
@@ -79,12 +83,17 @@ namespace Celeste.Mod.FontCustomizer
 
         }
         SharpFont.Library library = new();
-        SharpFont.Face current;
-        double baseline;
-        double scale;
-        double targetSize;
+        (SharpFont.Face face, double baseline, double scale, double targetSize, float exscale)[] currentList;
 
         public List<ModAsset> foundFonts = [];
+        public override void LoadSettings()
+        {
+            base.LoadSettings();
+        }
+        public override void SaveSettings()
+        {
+            base.SaveSettings();
+        }
         public override void LoadContent(bool firstLoad)
         {
             base.LoadContent(firstLoad);
@@ -95,90 +104,171 @@ namespace Celeste.Mod.FontCustomizer
                     foundFonts.Add(v);
                 }
             }
-            if (Settings.FontName is not null && !Everest.Content.TryGet($"{basic_path}/{Settings.FontName}", out _))
+            //if (Settings.FontNameList is not null && !Everest.Content.TryGet($"{basic_path}/{Settings.FontNameList}", out _))
+
+            if (Settings.FontNameList is null || Settings.FontSizeList is null)
             {
-                Settings.FontName = null;
+                if (string.IsNullOrEmpty(Settings.old_ver_font_name))
+                {
+                    Settings.FontNameList = [null];
+                    Settings.FontSizeList = [1];
+                }
+                else
+                {
+                    Settings.FontNameList = [Settings.old_ver_font_name, null];
+                    Settings.FontSizeList = [1, 1];
+                }
+                Settings.old_ver_font_name = null;
             }
+            else
+            {
+                Settings.FontNameList = Settings.FontNameList.Select(x =>
+                {
+                    if (x is not null && Everest.Content.TryGet($"{basic_path}/{x}", out _))
+                    {
+                        return x;
+                    }
+                    return null;
+                }).TakeWhile(x => x is not null).Append(null).ToArray();
+                Settings.FontSizeList =
+                    Settings.FontSizeList
+                    .Take(Settings.FontNameList.Length - 1)
+                    .Append(Settings.FontSizeList[^1])
+                    .ToArray();
+            }
+            //Settings.FontNameList = [null];
         }
         IEnumerable<char> generate_all()
         {
-            var p = current.GetFirstChar(out var i);
-            while (i != 0)
-            {
-                yield return (char)p;
-                p = current.GetNextChar(p, out i);
-            }
-        }
-        public void ReloadFont(string? font_ext)
-        => ReloadFont(font_ext, Dialog.Language);
-        public void LoadFont(string? font_ext)
-        => LoadFont(font_ext, Dialog.Language);
-        public void ReloadFont(string? font_ext, string lang)
-        => ReloadFont(font_ext, Dialog.Languages[lang]);
-        public void LoadFont(string? font_ext, string lang)
-        => LoadFont(font_ext, Dialog.Languages[lang]);
-        public void ReloadFont(string? font_ext, Language lang) => LoadFont(font_ext, lang);
 
+            static IEnumerable<char> _generate_all(SharpFont.Face current)
+            {
+                var p = current.GetFirstChar(out var i);
+                while (i != 0)
+                {
+                    yield return (char)p;
+                    p = current.GetNextChar(p, out i);
+                }
+            }
+            return currentList.Select(x => x.face).SelectMany(_generate_all).ToHashSet();
+        }
+
+
+
+        public void LoadFont()
+        => LoadFont(Dialog.Language, Settings.FontNameList, Settings.FontSizeList);
         //called when Language changes.
         //or font changes.
-        public void LoadFont(string? font_ext, Language lang)
+        public void LoadFont(Language lang, string?[] _font_ext, float[] sizelist)
         {
-            if (font_ext == "")
+            //var  = _font_ext[0];
+            var font_ext_conv = _font_ext.Select(x =>
             {
-                font_ext = null;
-            }
-            var _param1 = font_ext;
-            if (font_ext is null)
-            {
-                font_ext = foundFonts
-                    .Select(x => x.PathVirtual[(basic_path.Length + 1)..])
-                    .FirstOrDefault(x => x[..x.LastIndexOf('.')] == lang.FontFace)
-                    ?? "";
-            }
+                if (string.IsNullOrEmpty(x))
+                {
+                    x = foundFonts
+                          .Select(x => x.PathVirtual[(basic_path.Length + 1)..])
+                          .FirstOrDefault(x => x[..x.LastIndexOf('.')] == lang.FontFace);
+                }
+                if (Everest.Content.TryGet($"{basic_path}/{x}", out var md) && FreeTypeExtension.Contains(md.Format))
+                {
+                    return md;
+                }
+                return null;
+            }).Zip(sizelist).Where(x => x.First is not null);
 
-            if (Everest.Content.TryGet($"{basic_path}/{font_ext}", out var md) && FreeTypeExtension.Contains(md.Format))
+
+            //if (!Everest.Content.TryGet($"{basic_path}/{font_ext}", out var md) || !FreeTypeExtension.Contains(md.Format))
+            //{
+            //    //TODO: install vanilla font here.
+            //}
+            //else
+            if (font_ext_conv.Any())
             {
                 ThreadCancel = true;
                 RenderTask?.Wait();
                 ThreadCancel = false;
 
-                if (cachedFonts.TryGetValue(font_ext, out var rr))
+                currentList = font_ext_conv.Select(_font_ext =>
                 {
-                    current = rr;
-                }
-                else
-                {
-                    current = new SharpFont.Face(library, md.Data, 0);
-                    cachedFonts[font_ext] = current;
-                }
-
-                current.SetPixelSizes(0, 64);
-
-                scale = lang.FontFaceSize / current.Size.Metrics.Height.ToDouble();
-                if (lang.FontFace == "Renogare")
-                {
-                    scale *= scale;//why vanilla font smaller than mine?
-                }
-                if (current.IsScalable)
-                {
-                    SharpFont.FTMatrix mat = new()
+                    var (font_ext, exs) = _font_ext;
+                    SharpFont.Face current;
+                    if (cachedFonts.TryGetValue(font_ext!, out var rr))
                     {
-                        XX = (SharpFont.Fixed16Dot16)scale,
-                        YY = (SharpFont.Fixed16Dot16)scale,
-                        XY = 0,
-                        YX = 0,
-                    };
-                    current.SetTransform(mat);
-                }
-                else
+                        current = rr;
+                    }
+                    else
+                    {
+                        current = new SharpFont.Face(library, font_ext!.Data, 0);
+                        cachedFonts[font_ext] = current;
+                    }
+                    return (current, 0.0, 0.0, 0.0, exs);
+                }).ToArray();
+                for (int i = 0; i < currentList.Length; i++)
                 {
-                    //
-                    scale = 1;
-                    current.SetPixelSizes((uint)(lang.FontFaceSize * (lang.FontFaceSize / current.Size.Metrics.Height.ToDouble())), 0);
-                }
-                baseline = (-current.Size.Metrics.Descender.ToDouble() * scale);
-                targetSize = lang.FontFaceSize;
+                    ref var current = ref currentList[i].face;
+                    ref var scale = ref currentList[i].scale;
+                    ref var baseline = ref currentList[i].baseline;
+                    ref var targetSize = ref currentList[i].targetSize;
+                    ref var extrascale = ref currentList[i].exscale;
+                    current.SetPixelSizes(0, 64);
 
+                    scale = lang.FontFaceSize / current.Size.Metrics.Height.ToDouble();
+                    if (lang.FontFace == "Renogare")
+                    {
+                        scale *= scale;//why vanilla font smaller than mine?
+                    }
+                    if (current.IsScalable)
+                    {
+                        scale *= extrascale;
+                        SharpFont.FTMatrix mat = new()
+                        {
+                            XX = (SharpFont.Fixed16Dot16)scale,
+                            YY = (SharpFont.Fixed16Dot16)scale,
+                            XY = 0,
+                            YX = 0,
+                        };
+                        current.SetTransform(mat);
+                    }
+                    else
+                    {
+                        //
+                        scale = 1;
+                        current.SetPixelSizes((uint)(extrascale * lang.FontFaceSize * (lang.FontFaceSize / current.Size.Metrics.Height.ToDouble())), 0);
+                    }
+                    baseline = -current.Size.Metrics.Descender.ToDouble() * scale;
+                    targetSize = lang.FontFaceSize;
+
+
+                    //switch (Settings.Strategy)
+                    //{
+                    //    case GenerationStrategy.Dialog:
+
+                    //        foreach (var c in lang.Cleaned.Values.SelectMany(x => x).Concat(englishGenerated).Distinct())
+                    //        {
+                    //            LockedGenerateOrFallbackAndSave(c, lang.FontFace);
+                    //        }
+
+                    //        break;
+                    //    case GenerationStrategy.Loaded:
+                    //        foreach (var c in fallbacks[lang.FontFace].Keys)
+                    //        {
+                    //            LockedGenerateOrFallbackAndSave((char)c, lang.FontFace);
+                    //        }
+                    //        break;
+                    //    case GenerationStrategy.LazyLoad:
+                    //        break;
+                    //    case GenerationStrategy.All:
+                    //        var p = current.GetFirstChar(out var i);
+                    //        while (i != 0)
+                    //        {
+                    //            LockedGenerateOrFallbackAndSave((char)p, lang.FontFace);
+                    //            p = current.GetNextChar(p, out i);
+                    //        }
+                    //        break;
+                    //};
+
+                }
                 lang.Font.Sizes[0].Characters.Clear();
 
 
@@ -187,48 +277,14 @@ namespace Celeste.Mod.FontCustomizer
                     GenerationStrategy.Dialog => lang.Cleaned.Values.SelectMany(x => x).Concat(englishGenerated).ToHashSet(),
                     GenerationStrategy.Loaded => fallbacks[lang.FontFace].Keys.Select(x => (char)x),
                     GenerationStrategy.All => generate_all(),
-                    GenerationStrategy.LazyLoad => Enumerable.Empty<char>(),
+                    GenerationStrategy.LazyLoad => [],
 
                     _ => throw new NotImplementedException(),
                 };
-                RenderTask = new(() =>
+                RenderTask = Task.Run(() =>
                 {
                     RenderThread(lang.FontFace, tar);
                 });
-                RenderTask.Start();
-
-                //switch (Settings.Strategy)
-                //{
-                //    case GenerationStrategy.Dialog:
-
-                //        foreach (var c in lang.Cleaned.Values.SelectMany(x => x).Concat(englishGenerated).Distinct())
-                //        {
-                //            LockedGenerateOrFallbackAndSave(c, lang.FontFace);
-                //        }
-
-                //        break;
-                //    case GenerationStrategy.Loaded:
-                //        foreach (var c in fallbacks[lang.FontFace].Keys)
-                //        {
-                //            LockedGenerateOrFallbackAndSave((char)c, lang.FontFace);
-                //        }
-                //        break;
-                //    case GenerationStrategy.LazyLoad:
-                //        break;
-                //    case GenerationStrategy.All:
-                //        var p = current.GetFirstChar(out var i);
-                //        while (i != 0)
-                //        {
-                //            LockedGenerateOrFallbackAndSave((char)p, lang.FontFace);
-                //            p = current.GetNextChar(p, out i);
-                //        }
-                //        break;
-                //};
-
-            }
-            else
-            {
-                //TODO: install vanilla font here.
             }
         }
         //public Dictionary<string, string> vanillaFonts = new()
@@ -378,7 +434,7 @@ namespace Celeste.Mod.FontCustomizer
                     }
                     return null;
                 }
-                if (current is null)
+                if (currentList is null)
                 {
                     return Fallback();
                 }
@@ -386,15 +442,16 @@ namespace Celeste.Mod.FontCustomizer
                 {
                     return Fallback();
                 }
-
-                var tex = LockededGenerateChar(c, current, _make_unique: fontvanilla);
-
+                var (curtp, tex) = currentList.Select(cr => (cr, LockededGenerateChar(c, cr.face, _make_unique: fontvanilla))).FirstOrDefault(x => x.Item2 is not null);
+                var cur = curtp.face;
+                var targetSize = curtp.targetSize;
+                var baseline = curtp.baseline;
                 if (tex is null)
                 {
                     return Fallback();
                 }
 
-                SharpFont.GlyphSlot glyph = current.Glyph;
+                SharpFont.GlyphSlot glyph = cur.Glyph;
                 SharpFont.BBox box = glyph.GetGlyph().GetCBox(SharpFont.GlyphBBoxMode.Pixels);
 
                 fake_elem.SetAttribute("width", tex.Width.ToString());
@@ -442,7 +499,7 @@ namespace Celeste.Mod.FontCustomizer
             return mtex;
         }
 
-        Dictionary<string, SharpFont.Face> cachedFonts = [];
+        Dictionary<ModAsset, SharpFont.Face> cachedFonts = [];
         Dictionary<SharpFont.Face, Dictionary<int, MTexture>> cachedChars = [];
         public readonly IEnumerable<char> englishGenerated = //from Celeste\Content\Dialog\Fonts\configs\renogare.bmfc
             new (int f, int t)[] { (32, 126), (160, 163), (165, 180), (182, 263), (268, 275), (278, 283), (286, 287), (290, 291), (298, 299), (302, 305), (310, 311), (313, 318), (321, 321), (322, 328), (332, 333), (336, 347), (350, 357), (362, 363), (366, 371), (376, 382), (536, 539), (710, 711), (728, 733), (1460, 1460), (8211, 8212), (8216, 8218), (8220, 8222), (8224, 8226), (8230, 8230), (8240, 8240), (8249, 8250), (8260, 8260), (8364, 8364), (8482, 8482), (8800, 8800), (8804, 8805) }
@@ -592,7 +649,7 @@ namespace Celeste.Mod.FontCustomizer
             {
                 ic.EmitDelegate(() =>
                 {
-                    LoadFont(Settings.FontName);
+                    LoadFont();
                 });
             }
         }
@@ -600,7 +657,7 @@ namespace Celeste.Mod.FontCustomizer
         private void Settings_ApplyLanguage(On.Celeste.Settings.orig_ApplyLanguage orig, Settings self)
         {
             orig(self);
-            LoadFont(Settings.FontName);
+            LoadFont();
         }
 
         private PixelFont Fonts_Load(On.Celeste.Fonts.orig_Load orig, string face)

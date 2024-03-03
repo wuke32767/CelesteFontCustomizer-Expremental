@@ -38,6 +38,10 @@ namespace Celeste.Mod.FontCustomizer
         //     The list of label/value pairs.
         public List<(string, T)> Values;
 
+        public string currentKey => Values[Index].Item1;
+        public T currentValue => Values[Index].Item2;
+
+
         private float sine;
 
         private int lastDir;
@@ -112,7 +116,10 @@ namespace Celeste.Mod.FontCustomizer
         public override void Added()
         {
             Container.InnerContent = InnerContentMode.TwoColumn;
-            this.AddDescription(Container, subText);
+            if (subText != "")
+            {
+                this.AddDescription(Container, subText);
+            }
         }
 
         public override void LeftPressed()

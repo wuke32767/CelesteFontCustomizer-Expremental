@@ -2,6 +2,9 @@ USSRNAME_FontCustomizer_FontGenerateStrategy= Font Generation Strategy
 USSRNAME_FontCustomizer_FontName= Font Name
 USSRNAME_FontCustomizer_VanillaFont= Vanilla Font
 USSRNAME_FontCustomizer_ShouldConfirmManually= Press Confirm to save and apply new value.
+USSRNAME_FontCustomizer_ShouldConfirmManually_FontCustomizer= 
+Press Confirm to save and apply new value.
+If you don't select vanilla font, you should specify a fallback font.
 USSRNAME_FontCustomizer_FontGenerateStrategy_Description= 
 Loaded: Generate all characters loaded by Celeste/Everest.
 Dialog: Generate all characters appeared in Dialog/[current language].txt.

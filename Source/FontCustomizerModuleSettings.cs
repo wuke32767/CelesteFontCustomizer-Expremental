@@ -1,3 +1,4 @@
+using System;
 using System.Xml.Serialization;
 
 namespace Celeste.Mod.FontCustomizer
@@ -11,7 +12,10 @@ namespace Celeste.Mod.FontCustomizer
     {
         GenerationStrategy _strategy;
         bool _backgroundLoad;
-        string? _FontName;
+        string?[] _FontName = [null];
+        float[] _FontSize = [0];
+        private string? _FontNameFallBack;
+
         [SettingName("USSRNAME_FontCustomizer_FontGenerateStrategy")]
         [SettingSubText("USSRNAME_FontCustomizer_FontGenerateStrategy_Description")]
         public GenerationStrategy Strategy
@@ -39,7 +43,7 @@ namespace Celeste.Mod.FontCustomizer
             }
         }
         [SettingIgnore]
-        public string? FontName
+        public string?[] FontNameList
         {
             get
             {
@@ -50,5 +54,33 @@ namespace Celeste.Mod.FontCustomizer
                 _FontName = value;
             }
         }
+        [SettingIgnore]
+        public float[] FontSizeList
+        {
+            get
+            {
+                return _FontSize;
+            }
+            set
+            {
+                _FontSize = value;
+            }
+        }
+        internal string? old_ver_font_name;
+
+        [SettingIgnore]
+        [Obsolete]
+        public string? FontName
+        {
+            get
+            {
+                return null;
+            }
+            set
+            {
+                old_ver_font_name = value;
+            }
+        }
+
     }
 }
