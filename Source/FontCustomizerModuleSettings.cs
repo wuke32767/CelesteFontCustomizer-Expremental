@@ -7,14 +7,23 @@ namespace Celeste.Mod.FontCustomizer
     {
         Dialog, LazyLoad, Loaded, All,
     }
+    public struct FontConfig()
+    {
+        public FontConfig(string? fontName = null, float fontSize = 1) : this()
+        {
+            FontName = fontName;
+            FontSize = fontSize;
+        }
 
+        public string? FontName { get; set; } = null;
+        public float FontSize { get; set; } = 1;
+    }
     public class FontCustomizerModuleSettings : EverestModuleSettings
     {
         GenerationStrategy _strategy;
         bool _backgroundLoad;
-        string?[] _FontName = [null];
-        float[] _FontSize = [0];
-        private string? _FontNameFallBack;
+        internal bool check = false;
+        internal System.Collections.Generic.List<FontConfig> _FontList;
 
         [SettingName("USSRNAME_FontCustomizer_FontGenerateStrategy")]
         [SettingSubText("USSRNAME_FontCustomizer_FontGenerateStrategy_Description")]
@@ -31,8 +40,7 @@ namespace Celeste.Mod.FontCustomizer
             }
         }
         [SettingIgnore]//No reason to disable it.
-        [XmlIgnore]
-        public bool BackgroundLoad
+        internal bool BackgroundLoad
         {
             get
             {
@@ -43,29 +51,26 @@ namespace Celeste.Mod.FontCustomizer
             }
         }
         [SettingIgnore]
-        public string?[] FontNameList
+        public System.Collections.Generic.List<FontConfig> FontList
         {
             get
             {
-                return _FontName;
+                if (check && _FontList[^1].FontName is not null)
+                {
+                    throw new Exception($"{nameof(FontCustomizer)} Settings has been corrupted.");
+                }
+                return _FontList;
             }
             set
             {
-                _FontName = value;
+                if (check && value[^1].FontName is not null)
+                {
+                    throw new Exception($"{nameof(FontCustomizer)} Settings has been corrupted.");
+                }
+                _FontList = value;
             }
         }
-        [SettingIgnore]
-        public float[] FontSizeList
-        {
-            get
-            {
-                return _FontSize;
-            }
-            set
-            {
-                _FontSize = value;
-            }
-        }
+
         internal string? old_ver_font_name;
 
         [SettingIgnore]

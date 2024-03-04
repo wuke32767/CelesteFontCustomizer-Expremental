@@ -1,10 +1,15 @@
 USSRNAME_FontCustomizer_FontGenerateStrategy= Font Generation Strategy
 USSRNAME_FontCustomizer_FontName= Font Name
+USSRNAME_FontCustomizer_FontSize= Font Scale
 USSRNAME_FontCustomizer_VanillaFont= Vanilla Font
 USSRNAME_FontCustomizer_ShouldConfirmManually= Press Confirm to save and apply new value.
-USSRNAME_FontCustomizer_ShouldConfirmManually_FontCustomizer= 
-Press Confirm to save and apply new value.
-If you don't select vanilla font, you should specify a fallback font.
+USSRNAME_FontCustomizer_VanillaFontSize= 
+Can't change font size for vanilla font without vanilla font extension pack.
+USSRNAME_FontCustomizer_OutOfSafeRange= 
+This will cause your chars to be too large or too small.
+USSRNAME_FontCustomizer_VanillaFont_FallbackRequired= 
+You should specify a fallback font for non-vanilla font.
+Missing chars in current font will be replaced with chars from fallback font.
 USSRNAME_FontCustomizer_FontGenerateStrategy_Description= 
 Loaded: Generate all characters loaded by Celeste/Everest.
 Dialog: Generate all characters appeared in Dialog/[current language].txt.

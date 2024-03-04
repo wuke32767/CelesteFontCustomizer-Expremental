@@ -1,11 +1,15 @@
 USSRNAME_FontCustomizer_FontGenerateStrategy= 字体生成策略
 USSRNAME_FontCustomizer_FontName= 字体名称
+USSRNAME_FontCustomizer_FontSize= 字体缩放
 USSRNAME_FontCustomizer_VanillaFont= 原版字体
 USSRNAME_FontCustomizer_ShouldConfirmManually= 按确定键以修改并保存。
-USSRNAME_FontCustomizer_BackgroundLoad_Description= 在后台生成字体。对LazyLoad策略不适用。
-USSRNAME_FontCustomizer_ShouldConfirmManually_FontCustomizer= 
-按确定键以修改并保存。
-如果选择非原版字体，这个字体中缺少的字会在你指定的下一个字体中寻找。
+USSRNAME_FontCustomizer_VanillaFontSize= 
+安装原版字体补全包才可以修改原版字体大小。
+USSRNAME_FontCustomizer_OutOfSafeRange= 
+这将导致字符过大或过小。
+USSRNAME_FontCustomizer_VanillaFont_FallbackRequired= 
+需要为非原版字体指定回落字体。
+当前字体中缺少的字符将用回落字体中的字符代替。
 USSRNAME_FontCustomizer_FontGenerateStrategy_Description=
 Loaded: 生成所有原版和Everest加载的字。
 Dialog: 生成在当前语言的对话文件中出现的字。

@@ -10,6 +10,87 @@ using static Celeste.TextMenu;
 
 namespace Celeste.Mod.FontCustomizer
 {
+    public static class EXT
+    {
+        public static TextMenuExt.EaseInSubHeaderExt AddDescriptionManually(this TextMenu.Item option, TextMenu containingMenu, string description)
+        {
+            TextMenuExt.EaseInSubHeaderExt descriptionText = new TextMenuExt.EaseInSubHeaderExt(description, initiallyVisible: false, containingMenu)
+            {
+                TextColor = Color.Gray,
+                HeightExtra = 0f
+            };
+            List<TextMenu.Item> items = containingMenu.Items;
+            if (items.Contains(option))
+            {
+                containingMenu.Insert(items.IndexOf(option) + 1, descriptionText);
+            }
+
+            //option.OnEnter = (Action)Delegate.Combine(option.OnEnter, (Action)delegate
+            //{
+            //    descriptionText.FadeVisible = true;
+            //});
+            //option.OnLeave = (Action)Delegate.Combine(option.OnLeave, (Action)delegate
+            //{
+            //    descriptionText.FadeVisible = false;
+            //});
+            return descriptionText;
+        }
+        public static TextMenu RemoveAt(this TextMenu self,int item)
+        {
+            int num = item;
+            if (num == -1)
+            {
+                return self;
+            }
+            var iir = self.items[item];
+            self.items.RemoveAt(num);
+            iir.Container = null;
+            self.Remove(iir.ValueWiggler);
+            self.Remove(iir.SelectWiggler);
+            if (!self.BatchMode)
+            {
+                self.RecalculateSize();
+            }
+
+            return self;
+        }
+
+    }
+    public class PlaceHolder : Item
+    {
+    }
+    public class SliderConfirmed : OptionConfirmed<int>
+    {
+        //
+        // 摘要:
+        //     Create a new Celeste.TextMenu.Slider.
+        //
+        // 参数:
+        //   label:
+        //     The display name for this setting.
+        //
+        //   values:
+        //     A function for getting the display System.String for an System.Int32 value.
+        //
+        //   min:
+        //     The minimum possible value.
+        //
+        //   max:
+        //     The maximum possible value.
+        //
+        //   value:
+        //     The initial value.
+        public SliderConfirmed(string label, Func<int, string> values, int min, int max, int value = -1, string v = "USSRNAME_FontCustomizer_ShouldConfirmManually")
+            : base(label, v)
+        {
+            for (int i = min; i <= max; i++)
+            {
+                Add(values(i), i, value == i);
+            }
+        }
+    }
+
+
     public class OptionConfirmed<T> : Item
     {
         //
@@ -27,6 +108,7 @@ namespace Celeste.Mod.FontCustomizer
         // 摘要:
         //     Invoked when the value changes.
         public Action<T> OnValueChange;
+        public Action<T> OnValuePreview;
 
         //
         // 摘要:
@@ -75,6 +157,7 @@ namespace Celeste.Mod.FontCustomizer
                 Index = PreviousIndex;
             };
             subText = Dialog.Clean(v);
+            OnEnter += ()=>OnValuePreview?.Invoke(currentValue);
         }
         public string subText;
         //
@@ -112,6 +195,11 @@ namespace Celeste.Mod.FontCustomizer
             OnValueChange = action;
             return this;
         }
+        public OptionConfirmed<T> Preview(Action<T> action)
+        {
+            OnValuePreview = action;
+            return this;
+        }
 
         public override void Added()
         {
@@ -130,6 +218,8 @@ namespace Celeste.Mod.FontCustomizer
                 Index--;
                 lastDir = -1;
                 ValueWiggler.Start();
+
+                OnValuePreview?.Invoke(currentValue);
             }
         }
 
@@ -141,12 +231,14 @@ namespace Celeste.Mod.FontCustomizer
                 Index++;
                 lastDir = 1;
                 ValueWiggler.Start();
+
+                OnValuePreview?.Invoke(currentValue);
             }
         }
 
         public override void ConfirmPressed()
         {
-            OnValueChange?.Invoke(Values[Index].Item2);
+            OnValueChange?.Invoke(currentValue);
             PreviousIndex = Index;
         }
         public override void Update()

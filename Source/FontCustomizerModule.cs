@@ -33,37 +33,134 @@ namespace Celeste.Mod.FontCustomizer
         {
             optionMenu.Clear();
             base.CreateModMenuSection(menu, inGame, snapshot);
+            menu.Add(end ??= new());
             if (!inGame)
             {
-                ExtendMenu(menu, inGame);
+                ExtendMenu(menu);
             }
         }
-        List<OptionConfirmed<string?>> optionMenu = [];
-        private void ExtendMenu(TextMenu menu, bool inGame)
+
+        public void ExtendMenu(TextMenu menu)
         {
-            OptionConfirmed<string?> skinSelectMenu = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName"), "USSRNAME_FontCustomizer_ShouldConfirmManually_FontCustomizer");
-            //OptionConfirmed<string?> skinSelectMenufb = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName_Fallback"));
-
-            skinSelectMenu.Add(Dialog.Clean("USSRNAME_FontCustomizer_VanillaFont"), null, true);
-
-            foreach (var v in foundFonts)
+            while (Settings.FontList.Count > optionMenu.Count)
             {
-                var name = v.PathVirtual[(basic_path.Length + 1)..];
+                ExtendMenuOnce(menu);
+            }
+        }
+        public void RebuildFontList(int index)
+        {
+            bool batch = true;
+            var menu = end.Container;
+            (menu.BatchMode, batch) = (batch, menu.BatchMode);
+            if (index == optionMenu.Count - 1)
+            {
+                Settings.check = false;
+                Settings.FontList = [.. Settings.FontList, new()];
+                Settings.check = true;
+                ExtendMenuOnce(end.Container);
+            }
+            else
+            {
+                if (Settings.FontList[index].FontName == null)
+                {
+                    Settings.FontList.RemoveRange(index + 1, Settings.FontList.Count - index - 1);
+                }
+                else
+                {
+                    try
+                    {
+                        var (cfg, i) =
+                            Settings.FontList
+                            .Select((x, i) => (cfg: x, i))
+                            .Skip(index + 1)
+                            .First(x => x.cfg.FontName == Settings.FontList[index].FontName);
+                        //i += index + 1;
+                        Settings.FontList.RemoveAt(i);
+                    }
+                    catch (InvalidOperationException) { }
+                }
+                var (opt, siz) = optionMenu[index + 1];
+                var remove = menu.IndexOf(opt);
+                while (menu.Items[remove] != end)
+                {
+                    menu.RemoveAt(remove);
+                }
+
+                optionMenu.RemoveRange(index + 1, optionMenu.Count - index - 1);
+                ExtendMenu(menu);
+            }
+            (menu.BatchMode, batch) = (batch, menu.BatchMode);
+        }
+        List<(OptionConfirmed<string?> option, SliderConfirmed size)> optionMenu = [];
+        PlaceHolder end;
+
+        private void ExtendMenuOnce(TextMenu menu)
+        {
+            var index = optionMenu.Count;
+            OptionConfirmed<string?> selectMenu = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName"));
+            SliderConfirmed slide = new(Dialog.Clean("USSRNAME_FontCustomizer_FontSize"), x => (x / 100f).ToString(), 1, 300, (int)Math.Round(Settings.FontList[index].FontSize * 100f));
+
+            //OptionConfirmed<string?> skinSelectMenufb = new(Dialog.Clean("USSRNAME_FontCustomizer_FontName_Fallback"));
+            menu.Insert(menu.IndexOf(end), selectMenu);
+            menu.Insert(menu.IndexOf(end), slide);
+            optionMenu.Add((selectMenu, slide));
+
+            selectMenu.Add(Dialog.Clean("USSRNAME_FontCustomizer_VanillaFont"), null, true);
+
+            foreach (var v in foundFonts
+                            .Select(x => x.PathVirtual[(basic_path.Length + 1)..])
+                            .Except(optionMenu.Select(x => x.option.currentValue)))
+            {
+                var name = v!;
                 var nameless = name[..name.LastIndexOf('.')];
                 if (!Dialog.Languages.Values.Select(x => x.FontFace).Contains(nameless))
                 {
-                    skinSelectMenu.Add(nameless, name, name == Settings.FontNameList[0]);
+                    selectMenu.Add(nameless, name, name == Settings.FontList[index].FontName);
                 }
             }
 
-            skinSelectMenu.Change(x =>
-            {
-                Settings.FontNameList[0] = x;
-                LoadFont();
-            });
+            var fb = selectMenu.AddDescriptionManually(menu, Dialog.Clean("USSRNAME_FontCustomizer_VanillaFont_FallbackRequired"));
+            fb.TextColor = Color.Yellow;
+            selectMenu
+                .Change((string? s) =>
+                {
+                    var index = optionMenu.IndexOf((selectMenu, slide));
+                    var t = Settings.FontList[index];
+                    t.FontName = s;
+                    Settings.FontList[index] = t;
+                    RebuildFontList(index);
+                    LoadFont();
+                })
+                .Preview(x => fb.FadeVisible = x is not null)
+                .OnLeave += () =>
+                {
+                    fb.FadeVisible = false;
+                };
 
-            menu.Add(skinSelectMenu);
+            var fb2 = slide.AddDescriptionManually(menu, Dialog.Clean("USSRNAME_FontCustomizer_OutOfSafeRange"));
+            var fb3 = slide.AddDescriptionManually(menu, Dialog.Clean("USSRNAME_FontCustomizer_VanillaFontSize"));
+            fb2.TextColor = Color.Yellow;
+            fb3.TextColor = Color.Yellow;
+            slide
+                .Change((int s) =>
+                {
+                    var t = Settings.FontList[index];
+                    t.FontSize = s / 100f;
+                    Settings.FontList[index] = t;
+                    LoadFont();
+                })
+                .Preview(x => fb2.FadeVisible = x <= 10 || x > 110)
+                .OnLeave += () =>
+                {
+                    fb3.FadeVisible = false;
+                    fb2.FadeVisible = false;
+                };
+            slide.OnEnter += delegate
+            {
+                fb3.FadeVisible = selectMenu.currentValue == null;
+            };
         }
+
 
         public FontCustomizerModule()
         {
@@ -106,36 +203,32 @@ namespace Celeste.Mod.FontCustomizer
             }
             //if (Settings.FontNameList is not null && !Everest.Content.TryGet($"{basic_path}/{Settings.FontNameList}", out _))
 
-            if (Settings.FontNameList is null || Settings.FontSizeList is null)
+            Settings.check = false;
+            if (Settings.FontList is null)
             {
                 if (string.IsNullOrEmpty(Settings.old_ver_font_name))
                 {
-                    Settings.FontNameList = [null];
-                    Settings.FontSizeList = [1];
+                    Settings.FontList = [new()];
                 }
                 else
                 {
-                    Settings.FontNameList = [Settings.old_ver_font_name, null];
-                    Settings.FontSizeList = [1, 1];
+                    Settings.FontList = [new(Settings.old_ver_font_name), new()];
                 }
                 Settings.old_ver_font_name = null;
             }
             else
             {
-                Settings.FontNameList = Settings.FontNameList.Select(x =>
+                Settings.FontList = Settings.FontList.Where(xa =>
                 {
+                    var x = xa.FontName;
                     if (x is not null && Everest.Content.TryGet($"{basic_path}/{x}", out _))
                     {
-                        return x;
+                        return true;
                     }
-                    return null;
-                }).TakeWhile(x => x is not null).Append(null).ToArray();
-                Settings.FontSizeList =
-                    Settings.FontSizeList
-                    .Take(Settings.FontNameList.Length - 1)
-                    .Append(Settings.FontSizeList[^1])
-                    .ToArray();
+                    return false;
+                }).DistinctBy(x => x.FontName).Append(Settings.FontList.LastOrDefault(new FontConfig())).ToList();
             }
+            Settings.check = true;
             //Settings.FontNameList = [null];
         }
         IEnumerable<char> generate_all()
@@ -156,14 +249,15 @@ namespace Celeste.Mod.FontCustomizer
 
 
         public void LoadFont()
-        => LoadFont(Dialog.Language, Settings.FontNameList, Settings.FontSizeList);
+        => LoadFont(Dialog.Language, Settings.FontList);
         //called when Language changes.
         //or font changes.
-        public void LoadFont(Language lang, string?[] _font_ext, float[] sizelist)
+        public void LoadFont(Language lang, List<FontConfig> _font_ext)
         {
             //var  = _font_ext[0];
-            var font_ext_conv = _font_ext.Select(x =>
+            var font_ext_conv = _font_ext.Select(cfg =>
             {
+                var x = cfg.FontName;
                 if (string.IsNullOrEmpty(x))
                 {
                     x = foundFonts
@@ -172,10 +266,10 @@ namespace Celeste.Mod.FontCustomizer
                 }
                 if (Everest.Content.TryGet($"{basic_path}/{x}", out var md) && FreeTypeExtension.Contains(md.Format))
                 {
-                    return md;
+                    return (Asset: md, Size: cfg.FontSize);
                 }
-                return null;
-            }).Zip(sizelist).Where(x => x.First is not null);
+                return (null, cfg.FontSize);
+            }).Where(x => x.Asset is not null);
 
 
             //if (!Everest.Content.TryGet($"{basic_path}/{font_ext}", out var md) || !FreeTypeExtension.Contains(md.Format))
