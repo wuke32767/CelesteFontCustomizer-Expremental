@@ -3,4 +3,4 @@
 
 Read 👆 To get more.
 
-This repository doesn't contain freefont.dll and SharpFontCore.dll. Get them from Gamebanana release(files).
+This repository doesn't contain freetype.dll and SharpFontCore.dll. Get them from Gamebanana release(files).
