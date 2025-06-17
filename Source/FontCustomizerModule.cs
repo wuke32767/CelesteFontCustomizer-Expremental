@@ -194,11 +194,23 @@ namespace Celeste.Mod.FontCustomizer
         public override void LoadContent(bool firstLoad)
         {
             base.LoadContent(firstLoad);
-            foreach (var (k, v) in Everest.Content.Map)
+            var dirs = Everest.Content.Get(basic_path) as ModAssetBranch;
+            IEnumerable<ModAsset> Flatten(ModAsset assets)
             {
-                if (k.StartsWith(basic_path) && FreeTypeExtension.Contains(v.Format)/* && !vanillaFonts.ContainsValue(k[(basic_path.Length + 1)..])*/)
+                yield return assets;
+                foreach (var i in assets.Children.SelectMany(Flatten))
                 {
-                    foundFonts.Add(v);
+                    yield return i;
+                }
+            }
+            if (dirs is not null)
+            {
+                foreach (var v in Flatten(dirs))
+                {
+                    if (FreeTypeExtension.Contains(v.Format)/* && !vanillaFonts.ContainsValue(k[(basic_path.Length + 1)..])*/)
+                    {
+                        foundFonts.Add(v);
+                    }
                 }
             }
             //if (Settings.FontNameList is not null && !Everest.Content.TryGet($"{basic_path}/{Settings.FontNameList}", out _))
@@ -457,7 +469,6 @@ namespace Celeste.Mod.FontCustomizer
             foreach (var c in gen)
             {
                 //oh, just lock it. 
-                loadimmediately = Environment.CurrentManagedThreadId;
                 LockedGenerateOrFallbackAndSave(c, vanilla);
                 System.Threading.Thread.Sleep(1);//laggy
                 if (ThreadCancel)
@@ -477,7 +488,6 @@ namespace Celeste.Mod.FontCustomizer
                 r.Texture_Safe = null;
                 rng.Dequeue();
             }
-            loadimmediately = int.MaxValue + 42L + int.MaxValue;
             //Stopwatch sw = new();
             //char n;
             //ThreadFont = vanilla;
@@ -585,7 +595,7 @@ namespace Celeste.Mod.FontCustomizer
                     data[i * bmp.Width + j] = new(vv, vv, vv, vv);
                 }
             }
-            var vt = new VirtualTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
+            var vt = new RuntimeTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
             //System.Threading.Thread.GetCurrentProcessorId();
             vt.Texture_Safe.SetData(data);
             var mtex = new MTexture(vt);
@@ -643,7 +653,6 @@ namespace Celeste.Mod.FontCustomizer
             orig_draw_l?.Dispose();
             orig_measure_h?.Dispose();
 
-            IL.Monocle.VirtualTexture.Load -= VirtualTexture_Load;
             On.Monocle.Engine.UnloadContent -= Engine_UnloadContent;
         }
         public override void Load()
@@ -661,7 +670,6 @@ namespace Celeste.Mod.FontCustomizer
             orig_draw_l = new(orig_draw[1], GenericForeachPatcher);
             orig_measure_h = new(orig_measure, GenericForeachPatcher);
 
-            IL.Monocle.VirtualTexture.Load += VirtualTexture_Load;
             On.Monocle.Engine.UnloadContent += Engine_UnloadContent;
         }
 
@@ -672,27 +680,6 @@ namespace Celeste.Mod.FontCustomizer
             orig(self);
         }
 
-        private void VirtualTexture_Load(ILContext il)
-        {
-            var ic = new ILCursor(il);
-            if (ic.TryGotoNext(MoveType.After,
-                i => i.MatchLdarg(0),
-                i => i.MatchCallOrCallvirt(typeof(VirtualTexture), "get_LoadImmediately"),
-                i => i.MatchBrfalse(out _)))
-            {
-                var label = ic.MarkLabel();
-                ic.Index -= 3;
-                ic.Emit(Mono.Cecil.Cil.OpCodes.Call, typeof(FontCustomizerModule).GetMethod(nameof(GetProcess), BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!);
-                //ic.Emit(Mono.Cecil.Cil.OpCodes.Ldsfld, typeof(FontCustomizerModule).GetField(nameof(loadimmediately), BindingFlags.Static | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
-                ic.Emit(Mono.Cecil.Cil.OpCodes.Brtrue, label);
-            }
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static bool GetProcess()
-        {
-            return loadimmediately == Environment.CurrentManagedThreadId;
-        }
-        static long loadimmediately = int.MaxValue + 42L + int.MaxValue;//Impossible to be an existing thread id.
         private PixelFontSize PixelFont_Get(On.Monocle.PixelFont.orig_Get orig, PixelFont self, float size)
         {
             if (self?.Sizes?.Count == 0)
