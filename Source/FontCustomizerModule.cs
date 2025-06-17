@@ -421,7 +421,7 @@ namespace Celeste.Mod.FontCustomizer
                 dir.Clear();
             }
         }
-        public PixelFontCharacter? LockedGetGenResult(char ch, string fontvanilla)
+        public PixelFontCharacter? LockedGetGenResult(int ch, string fontvanilla)
         {
             lock (this)
             {
@@ -512,7 +512,7 @@ namespace Celeste.Mod.FontCustomizer
             //}
         }
 
-        public PixelFontCharacter? LockedGenerateOrFallbackAndSave(char c, string fontvanilla)
+        public PixelFontCharacter? LockedGenerateOrFallbackAndSave(int c, string fontvanilla)
         {
             lock (this)
             {
@@ -562,9 +562,9 @@ namespace Celeste.Mod.FontCustomizer
         }
         public Dictionary<string, Dictionary<int, PixelFontCharacter>> fallbacks = [];
         static ulong make_unique = 0;
-        public MTexture? LockededGenerateChar(char c, SharpFont.Face lang, string _make_unique)
+        public MTexture? LockededGenerateChar(int c, SharpFont.Face lang, string _make_unique)
         {
-            var wh = lang.GetCharIndex(c);
+            var wh = lang.GetCharIndex((uint)c);
             if (wh == 0)
             {
                 return null;
@@ -723,7 +723,7 @@ namespace Celeste.Mod.FontCustomizer
                 var lang = Dialog.Languages.Values.FirstOrDefault(x => x.Font is not null && x.FontSize == self);
                 if (lang != null)
                 {
-                    px = Instance.LockedGetGenResult((char)o, lang.FontFace);
+                    px = Instance.LockedGetGenResult(o, lang.FontFace);
                 }
                 if (px is null)
                 {
