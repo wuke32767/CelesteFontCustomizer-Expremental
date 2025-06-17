@@ -714,7 +714,7 @@ namespace Celeste.Mod.FontCustomizer
                 ic.EmitDelegate(PatchWorker);
             }
         }
-        bool PatchWorker(Dictionary<int, PixelFontCharacter> dir, int o, out PixelFontCharacter? px, PixelFontSize self)
+        static bool PatchWorker(Dictionary<int, PixelFontCharacter> dir, int o, out PixelFontCharacter? px, PixelFontSize self)
         {
             bool b = dir.TryGetValue(o, out px);
             if (b == false)
@@ -723,7 +723,7 @@ namespace Celeste.Mod.FontCustomizer
                 var lang = Dialog.Languages.Values.FirstOrDefault(x => x.Font is not null && x.FontSize == self);
                 if (lang != null)
                 {
-                    px = LockedGetGenResult((char)o, lang.FontFace);
+                    px = Instance.LockedGetGenResult((char)o, lang.FontFace);
                 }
                 if (px is null)
                 {
@@ -741,10 +741,11 @@ namespace Celeste.Mod.FontCustomizer
             ic.Index = -1;
             if (ic.TryGotoPrev(MoveType.After, i => i.MatchCall(typeof(Fonts), "Load")))
             {
-                ic.EmitDelegate(() =>
+                static void cb()
                 {
-                    LoadFont();
-                });
+                    Instance.LoadFont();
+                }
+                ic.EmitDelegate(cb);
             }
         }
 
