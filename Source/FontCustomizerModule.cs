@@ -20,6 +20,7 @@ namespace Celeste.Mod.FontCustomizer
 {
     public class FontCustomizerModule : EverestModule
     {
+        GlyphAtlas glyphAtlas = new();
         public static readonly string basic_path = "Assets/FontFile";
         public static FontCustomizerModule Instance { get; private set; }
 
@@ -449,7 +450,7 @@ namespace Celeste.Mod.FontCustomizer
         //just lock it manually.
         //there're only two threads, after all.
         Dictionary<string, Dictionary<int, PixelFontCharacter>> RenderTarget = [];
-        Dictionary<string, Queue<(ulong, VirtualTexture)>> Disposer = [];
+        Dictionary<string, Queue<(ulong, IDisposable)>> Disposer = [];
         ////Don't support more than one thread.
         //string ThreadFont;
         //char? ThreadRequest;
@@ -460,7 +461,7 @@ namespace Celeste.Mod.FontCustomizer
         public void RenderThread(string vanilla, /*HashSet<char>*/IEnumerable<char> gen)
         {
             var i = make_unique;
-            Queue<(ulong, VirtualTexture)> rng;
+            Queue<(ulong, IDisposable)> rng;
             lock (this)
             {
                 rng = Disposer[vanilla];
@@ -484,8 +485,7 @@ namespace Celeste.Mod.FontCustomizer
                 {
                     break;
                 }
-                r.Unload();
-                r.Texture_Safe = null;
+                r.Dispose();
                 rng.Dequeue();
             }
             //Stopwatch sw = new();
@@ -546,14 +546,18 @@ namespace Celeste.Mod.FontCustomizer
                 {
                     return Fallback();
                 }
-                var (curtp, tex) = currentList.Select(cr => (cr, LockededGenerateChar(c, cr.face, _make_unique: fontvanilla))).FirstOrDefault(x => x.Item2 is not null);
+                var (curtp, alloc) = currentList
+                    .Select(cr => (cr, LockededGenerateChar(c, cr.face, _make_unique: fontvanilla)))
+                    .FirstOrDefault(x => x.Item2 is not null);
+
                 var cur = curtp.face;
                 var targetSize = curtp.targetSize;
                 var baseline = curtp.baseline;
-                if (tex is null)
+                if (alloc is null)
                 {
                     return Fallback();
                 }
+                var (tex, dispose) = alloc!.Value;
 
                 SharpFont.GlyphSlot glyph = cur.Glyph;
                 SharpFont.BBox box = glyph.GetGlyph().GetCBox(SharpFont.GlyphBBoxMode.Pixels);
@@ -566,13 +570,13 @@ namespace Celeste.Mod.FontCustomizer
 
                 var charx = new PixelFontCharacter(c, tex, fake_elem);
                 //return Fonts.Get(fontvanilla).Sizes[0].Characters[c] = charx;
-                Disposer[fontvanilla].Enqueue((make_unique, charx.Texture.Texture));
+                Disposer[fontvanilla].Enqueue((make_unique++, dispose));
                 return RenderTarget[fontvanilla][c] = charx;
             }
         }
         public Dictionary<string, Dictionary<int, PixelFontCharacter>> fallbacks = [];
         static ulong make_unique = 0;
-        public MTexture? LockededGenerateChar(int c, SharpFont.Face lang, string _make_unique)
+        public AllocatedMTexture? LockededGenerateChar(int c, SharpFont.Face lang, string _make_unique)
         {
             var wh = lang.GetCharIndex((uint)c);
             if (wh == 0)
@@ -595,12 +599,9 @@ namespace Celeste.Mod.FontCustomizer
                     data[i * bmp.Width + j] = new(vv, vv, vv, vv);
                 }
             }
-            var vt = new RuntimeTexture($"ussrname_{nameof(FontCustomizer)}_{_make_unique}_{c}_{++make_unique}", bmp.Width, bmp.Rows, Color.White);
-            //System.Threading.Thread.GetCurrentProcessorId();
-            vt.Texture_Safe.SetData(data);
-            var mtex = new MTexture(vt);
+            var alloc = glyphAtlas.Allocate(data, bmp.Width, bmp.Rows);
             bmp.Dispose();
-            return mtex;
+            return alloc;
         }
 
         Dictionary<ModAsset, SharpFont.Face> cachedFonts = [];
@@ -761,8 +762,5 @@ namespace Celeste.Mod.FontCustomizer
             }
             return ret;
         }
-
-
-
     }
 }
