@@ -71,15 +71,6 @@ namespace Celeste.Mod.FontCustomizer
             if (bestIndex == -1)
             {
                 region = Rectangle.Empty;
-                try
-                {
-                    if (WriteDebugInfo.Value)
-                    {
-                        using var f = File.OpenWrite($"R:/temp{Random.Shared.Next()}.png");
-                        AtlasTexture.Texture.SaveAsPng(f, AtlasWidth, AtlasHeight);
-                    }
-                }
-                catch { }
                 Full = true;
                 return false;
             }
@@ -87,6 +78,19 @@ namespace Celeste.Mod.FontCustomizer
             UpdateSkyline(bestIndex, new(bestX, bestY + glyphHeight, glyphWidth));
             region = new Rectangle(bestX + Padding, bestY + Padding, glyphWidth - Padding * 2, glyphHeight - Padding * 2);
             return true;
+        }
+
+        private void Dump()
+        {
+            try
+            {
+                if (WriteDebugInfo.Value)
+                {
+                    using var f = File.OpenWrite($"R:/temp{Random.Shared.Next()}.png");
+                    AtlasTexture.Texture.SaveAsPng(f, AtlasWidth, AtlasHeight);
+                }
+            }
+            catch { }
         }
 
         private bool TryFit(int index, int width, int height, out int y)
@@ -147,9 +151,18 @@ namespace Celeste.Mod.FontCustomizer
                 disposed = true;
             }
         }
+        internal void OnWrite()
+        {
+            Interlocked.Increment(ref AppliedCount);
+            if (AppliedCount == Count && Full)
+            {
+                Dump();
+            }
+        }
         internal IDisposable AddReference()
         {
             Interlocked.Increment(ref RefCount);
+            Interlocked.Increment(ref Count);
             return new Collect(this);
         }
         internal void Dispose()
@@ -163,6 +176,8 @@ namespace Celeste.Mod.FontCustomizer
         bool disposed;
         internal bool Full = false;
         internal int RefCount = 0;
+        internal int AppliedCount = 0;
+        internal int Count = 0;
         internal GlyphAtlas? collector = null;
     }
 
@@ -216,6 +231,7 @@ namespace Celeste.Mod.FontCustomizer
                     var mtex = () =>
                     {
                         cur.AtlasTexture.Texture_Safe.SetData(0, region, glyphTex, 0, glyphTex.Length);
+                        cur.OnWrite();
                         return new MTexture(new(cur.AtlasTexture), clip);
                     };
 
