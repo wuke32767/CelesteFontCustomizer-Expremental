@@ -378,7 +378,7 @@ namespace Celeste.Mod.FontCustomizer
 
                 }
                 lang.Font.Sizes[0].Characters.Clear();
-
+                NullRenderTarget[lang.FontFace].Clear();
 
                 var tar = Settings.Strategy switch
                 {
@@ -449,6 +449,7 @@ namespace Celeste.Mod.FontCustomizer
         //just lock it manually.
         //there're only two threads, after all.
         Dictionary<string, Dictionary<int, Func<PixelFontCharacter>>> RenderTarget = [];
+        Dictionary<string, HashSet<int>> NullRenderTarget = [];
         Dictionary<string, Queue<(ulong, IDisposable)>> Disposer = [];
         ////Don't support more than one thread.
         //string ThreadFont;
@@ -470,7 +471,7 @@ namespace Celeste.Mod.FontCustomizer
             {
                 //oh, just lock it. 
                 LockedGenerateOrFallbackAndSave(c, vanilla);
-                System.Threading.Thread.Sleep(1);//laggy
+                //System.Threading.Thread.Sleep(1);//laggy
                 if (ThreadCancel)
                 {
                     RenderTarget[vanilla].Clear();
@@ -723,17 +724,21 @@ namespace Celeste.Mod.FontCustomizer
             bool b = dir.TryGetValue(o, out px);
             if (b == false)
             {
-
                 var lang = Dialog.Languages.Values.FirstOrDefault(x => x.Font is not null && x.FontSize == self);
-                if (lang != null)
+                if (lang == null)
                 {
-                    Instance.LockedUpload(o, lang.FontFace);
-                    dir.TryGetValue(o, out px);
+                    return false;
                 }
-                if (px is null)
+                if (Instance.NullRenderTarget[lang.FontFace].Contains(o))
+                {
+                    return false;
+                }
+                Instance.LockedUpload(o, lang.FontFace);
+                if (!dir.TryGetValue(o, out px))
                 {
                     //if (!fallbacks.TryGetValue(lang?.FontFace ?? "", out var dirfb) || !dirfb.TryGetValue(o, out px))
                     {
+                        Instance.NullRenderTarget[lang.FontFace].Add(o);
                         return false;
                     }
                 }
@@ -774,6 +779,7 @@ namespace Celeste.Mod.FontCustomizer
                 lock (this)
                 {
                     RenderTarget.TryAdd(face, []);
+                    NullRenderTarget.TryAdd(face, []);
                     Disposer.TryAdd(face, new());
                 }
             }
