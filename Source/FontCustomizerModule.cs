@@ -422,35 +422,33 @@ namespace Celeste.Mod.FontCustomizer
         {
             foreach (var (fnt, dir) in RenderTarget)
             {
-                foreach (var (ch, tex) in dir)
+                var mightunload = Fonts.Get(fnt);
+                if (mightunload is not null)
                 {
-                    var mightunload = Fonts.Get(fnt);
-                    if (mightunload is null)
+                    foreach (var (ch, tex) in dir)
                     {
-                        break;
+                        mightunload.Sizes[0].Characters[ch] = tex();
+                        //DynamicData.For(mightunload).Get<List<VirtualTexture>>("managedTextures").Add(tex.Texture.Texture);
                     }
-                    mightunload.Sizes[0].Characters[ch] = tex;
-                    //DynamicData.For(mightunload).Get<List<VirtualTexture>>("managedTextures").Add(tex.Texture.Texture);
                 }
                 dir.Clear();
             }
         }
-        public PixelFontCharacter? LockedGetGenResult(int ch, string fontvanilla)
+        public void LockedUpload(int ch, string fontvanilla)
         {
             lock (this)
             {
-                if (!RenderTarget.TryGetValue(fontvanilla, out var dir) || !dir.TryGetValue(ch, out PixelFontCharacter? ret))
+                if (!RenderTarget.TryGetValue(fontvanilla, out var dir) || !dir.TryGetValue(ch, out _))
                 {
-                    ret = LockedGenerateOrFallbackAndSave(ch, fontvanilla);
+                    LockedGenerateOrFallbackAndSave(ch, fontvanilla);
                 }
                 LockededMerge();
-                return ret;
             }
         }
         //no need to concurrent.
         //just lock it manually.
         //there're only two threads, after all.
-        Dictionary<string, Dictionary<int, PixelFontCharacter>> RenderTarget = [];
+        Dictionary<string, Dictionary<int, Func<PixelFontCharacter>>> RenderTarget = [];
         Dictionary<string, Queue<(ulong, IDisposable)>> Disposer = [];
         ////Don't support more than one thread.
         //string ThreadFont;
@@ -481,7 +479,7 @@ namespace Celeste.Mod.FontCustomizer
             }
             while (rng.Count > 0)
             {
-                if(ThreadCancel)
+                if (ThreadCancel)
                 {
                     return;
                 }
@@ -495,7 +493,7 @@ namespace Celeste.Mod.FontCustomizer
             }
             Engine.Scene.OnEndOfFrame += () =>
             {
-                lock(this)
+                lock (this)
                 {
                     LockededMerge();
                 }
@@ -534,17 +532,17 @@ namespace Celeste.Mod.FontCustomizer
             //}
         }
 
-        public PixelFontCharacter? LockedGenerateOrFallbackAndSave(int c, string fontvanilla)
+        public Func<PixelFontCharacter>? LockedGenerateOrFallbackAndSave(int c, string fontvanilla)
         {
             lock (this)
             {
-                PixelFontCharacter? Fallback()
+                Func<PixelFontCharacter>? Fallback()
                 {
                     if (fallbacks.TryGetValue(fontvanilla, out var res))
                     {
                         if (res.TryGetValue(c, out var chars))
                         {
-                            return RenderTarget[fontvanilla][c] = chars;
+                            return RenderTarget[fontvanilla][c] = () => chars;
                             //return Fonts.Get(fontvanilla).Sizes[0].Characters[c] = chars;
                         }
                     }
@@ -569,19 +567,25 @@ namespace Celeste.Mod.FontCustomizer
                 {
                     return Fallback();
                 }
-                var (tex, dispose) = alloc!.Value;
-
+                var (_tex, dispose) = alloc!.Value;
                 SharpFont.GlyphSlot glyph = cur.Glyph;
                 SharpFont.BBox box = glyph.GetGlyph().GetCBox(SharpFont.GlyphBBoxMode.Pixels);
+                var xadv = glyph.Advance.X.ToInt32();
 
-                fake_elem.SetAttribute("width", tex.Width.ToString());
-                fake_elem.SetAttribute("height", tex.Height.ToString());
-                fake_elem.SetAttribute("xoffset", box.Left.ToString());
-                fake_elem.SetAttribute("yoffset", ((int)(targetSize - box.Top - baseline)).ToString());
-                fake_elem.SetAttribute("xadvance", glyph.Advance.X.ToInt32().ToString());
+                var charx = () =>
+                {
+                    var tex = _tex();
 
-                var charx = new PixelFontCharacter(c, tex, fake_elem);
-                //return Fonts.Get(fontvanilla).Sizes[0].Characters[c] = charx;
+                    fake_elem.SetAttribute("width", tex.Width.ToString());
+                    fake_elem.SetAttribute("height", tex.Height.ToString());
+                    fake_elem.SetAttribute("xoffset", box.Left.ToString());
+                    fake_elem.SetAttribute("yoffset", ((int)(targetSize - box.Top - baseline)).ToString());
+                    fake_elem.SetAttribute("xadvance", xadv.ToString());
+
+                    var charx = new PixelFontCharacter(c, tex, fake_elem);
+                    //return Fonts.Get(fontvanilla).Sizes[0].Characters[c] = charx;
+                    return charx;
+                };
                 Disposer[fontvanilla].Enqueue((make_unique++, dispose));
                 return RenderTarget[fontvanilla][c] = charx;
             }
@@ -723,7 +727,8 @@ namespace Celeste.Mod.FontCustomizer
                 var lang = Dialog.Languages.Values.FirstOrDefault(x => x.Font is not null && x.FontSize == self);
                 if (lang != null)
                 {
-                    px = Instance.LockedGetGenResult(o, lang.FontFace);
+                    Instance.LockedUpload(o, lang.FontFace);
+                    dir.TryGetValue(o, out px);
                 }
                 if (px is null)
                 {

@@ -26,7 +26,7 @@ namespace Celeste.Mod.FontCustomizer
 #endif
         private readonly List<SkylineData> skyline = [new(0, 0, width)];
         public Lazy<RuntimeTexture> _AtlasTexture = new(() => new("AtlasPage", width, height, Color.White));
-        public Lazy<bool> WriteDebugInfo = new(() =>
+        public static Lazy<bool> WriteDebugInfo = new(() =>
         {
             try
             {
@@ -166,7 +166,7 @@ namespace Celeste.Mod.FontCustomizer
         internal GlyphAtlas? collector = null;
     }
 
-    public record struct AllocatedMTexture(MTexture Texture, IDisposable Dispose);
+    public record struct AllocatedMTexture(Func<MTexture> Texture, IDisposable Dispose);
 
     class GlyphAtlas(int width = GlyphAtlasPage.PageSize, int height = GlyphAtlasPage.PageSize)
     {
@@ -213,11 +213,14 @@ namespace Celeste.Mod.FontCustomizer
                     region = paddedRegion;
                     glyphTex = paddedData;
 #endif
-                    cur.AtlasTexture.Texture_Safe.SetData(0, region, glyphTex, 0, glyphTex.Length);
-
+                    var mtex = () =>
+                    {
+                        cur.AtlasTexture.Texture_Safe.SetData(0, region, glyphTex, 0, glyphTex.Length);
+                        return new MTexture(new(cur.AtlasTexture), clip);
+                    };
 
                     return new(
-                        new(new(cur.AtlasTexture), clip),
+                        mtex,
                         cur.AddReference());
                 }
                 success = false;
