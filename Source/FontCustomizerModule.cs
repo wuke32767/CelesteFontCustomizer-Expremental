@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
 
@@ -475,11 +476,15 @@ namespace Celeste.Mod.FontCustomizer
                 if (ThreadCancel)
                 {
                     RenderTarget[vanilla].Clear();
-                    break;
+                    return;
                 }
             }
-            while (!ThreadCancel && rng.Count > 0)
+            while (rng.Count > 0)
             {
+                if(ThreadCancel)
+                {
+                    return;
+                }
                 var (l, r) = rng.Peek();
                 if (l >= i)
                 {
@@ -488,6 +493,13 @@ namespace Celeste.Mod.FontCustomizer
                 r.Dispose();
                 rng.Dequeue();
             }
+            Engine.Scene.OnEndOfFrame += () =>
+            {
+                lock(this)
+                {
+                    LockededMerge();
+                }
+            };
             //Stopwatch sw = new();
             //char n;
             //ThreadFont = vanilla;
