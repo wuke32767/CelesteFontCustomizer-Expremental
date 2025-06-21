@@ -469,9 +469,23 @@ namespace Celeste.Mod.FontCustomizer
 
             foreach (var c in gen)
             {
+                bool lockTaken = false;
                 //oh, just lock it. 
-                LockedGenerateOrFallbackAndSave(c, vanilla);
-                //System.Threading.Thread.Sleep(1);//laggy
+                try
+                {
+                    while (!(lockTaken = System.Threading.Monitor.TryEnter(this)))
+                    {
+                        System.Threading.Thread.Sleep(10);
+                    }
+                    LockedGenerateOrFallbackAndSave(c, vanilla);
+                }
+                finally
+                {
+                    if (lockTaken)
+                    {
+                        System.Threading.Monitor.Exit(this);
+                    }
+                }
                 if (ThreadCancel)
                 {
                     RenderTarget[vanilla].Clear();
