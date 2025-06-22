@@ -470,7 +470,6 @@ namespace Celeste.Mod.FontCustomizer
             foreach (var c in gen)
             {
                 bool lockTaken = false;
-                //oh, just lock it. 
                 try
                 {
                     while (!(lockTaken = System.Threading.Monitor.TryEnter(this)))
@@ -508,9 +507,16 @@ namespace Celeste.Mod.FontCustomizer
             }
             Engine.Scene.OnEndOfFrame += () =>
             {
-                lock (this)
+                if (Engine.Scene is Level)
                 {
-                    LockededMerge();
+                    Engine.Scene.Add(new Guardian());
+                }
+                else
+                {
+                    lock (this)
+                    {
+                        LockededMerge();
+                    }
                 }
             };
             //Stopwatch sw = new();
