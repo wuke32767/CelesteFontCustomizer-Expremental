@@ -705,7 +705,7 @@ namespace Celeste.Mod.FontCustomizer
             IL.Monocle.PixelFontSize.Measure_char += GenericForeachPatcher;
             IL.Monocle.PixelFontSize.WidthToNextLine += GenericForeachPatcher;
             orig_draw_s = new(orig_draw[0], GenericForeachPatcher);
-            orig_draw_l = new(orig_draw[1], GenericForeachPatcher);
+            //orig_draw_l = new(orig_draw[1], GenericForeachPatcher);
             orig_measure_h = new(orig_measure, GenericForeachPatcher);
 
             On.Monocle.Engine.UnloadContent += Engine_UnloadContent;
